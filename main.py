@@ -129,7 +129,7 @@ async def check_applications():
             
             embed = discord.Embed(
                 title="Žádost čeká na schválení",
-                description=f"Od uživatele {application.user.name}",
+                description=f"Od uživatele [{application.user.name}](https://www.wikidot.com/user:info/{application.user.unix_name})",
                 color=discord.Colour.blurple(),
             )
             embed.add_field(name="Zpráva", value=f"```{application.text}```")
