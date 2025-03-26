@@ -106,9 +106,13 @@ class WDAppConfirmView(discord.ui.View):
 @bot.event
 async def on_ready():
     info(f"{bot.user} is ready to go!")
+    if not check_applications.is_running():
+        info("Scheduled check task")
+        check_applications.start()
 
 @tasks.loop(minutes=30)
 async def check_applications():
+    info("Running check task")
     count = 0
     applications = list()
     with wikidot.Client(username=os.environ.get("WIKI_USER"), password=os.environ.get("WIKI_PASSWORD")) as client:
@@ -153,6 +157,7 @@ async def view_applications(ctx: discord.ApplicationContext):
 @discord.default_permissions(administrator=True)
 @bot.slash_command(name="stats", description="Zobrazí statistiky")
 async def view_stats(ctx: discord.ApplicationContext):
+    info(f"Sending stats as response to {ctx.user.name} ({ctx.user.id})")
     accepted_count = WDApplication.select().where(WDApplication.accepted == True).count()
     rejected_count = WDApplication.select().where(WDApplication.accepted == False).count()
     external_count = WDApplication.select().where(WDApplication.resolved_externally == True).count()
@@ -161,6 +166,7 @@ async def view_stats(ctx: discord.ApplicationContext):
 @discord.default_permissions(administrator=True)
 @bot.slash_command(name="ping", description="Mňau")
 async def view_stats(ctx: discord.ApplicationContext):
+    info(f"Sending ping as response to {ctx.user.name} ({ctx.user.id})")
     await ctx.respond("🐈")
 
 if __name__ == "__main__":
