@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from discord.ext import tasks
 from logging import info, warning, debug, error, critical
 import os
+from lost import LostModule
 
 from models import database, WDApplication, User
 from constants import PM_VERB
@@ -182,4 +183,5 @@ if __name__ == "__main__":
     database.init(os.environ.get("DB_FILE", "applications.db"))
     database.connect()
     database.create_tables([User, WDApplication])
+    bot.add_cog(LostModule(bot))
     bot.run(os.environ.get("BOT_TOKEN"))
