@@ -1,5 +1,5 @@
 # Builtins
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
 from os import environ
 from logging import info
 
@@ -52,6 +52,7 @@ class LostModule(Cog):
         self.first_prompt_loop = True
         self.can_reset = True
 
+
     @slash_command(description="Start the cycle")
     async def start(self, ctx: discord.ApplicationContext):
         if self.loop_running:
@@ -67,6 +68,13 @@ class LostModule(Cog):
         self.loop_running = True
         self.lost_prompt.start()
         self.lost_failed.start()
+
+    @slash_command(description="Kolik zbývá času?")
+    async def time(self, ctx: discord.ApplicationContext):
+        if not self.loop_running:
+            await ctx.respond("bruh")
+            return
+        await ctx.respond(f"Zbývá {(self.lost_prompt.next_iteration- datetime.now(self.lost_prompt.next_iteration.tzinfo)).total_seconds() / 60:.1f} minut")
 
     @slash_command(description="Zachraňte se")
     async def reset(self, ctx: discord.ApplicationContext, answer: discord.Option(str, required=True)):
