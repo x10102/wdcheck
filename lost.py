@@ -1,6 +1,7 @@
 # Builtins
 from datetime import datetime
 from os import environ
+from logging import info
 
 # External
 from discord.ext import tasks
@@ -27,12 +28,13 @@ class LostModule(Cog):
         self.first_fail_loop = True
         self.loop_running = False
 
-    @tasks.loop(minutes=2)
+    @tasks.loop(minutes=240)
     async def lost_failed(self):
         if self.first_fail_loop:
             self.first_fail_loop = False
             return
         
+        info("Cycle failed")
         channel = self.bot.get_channel(self.channel_id)
         await channel.send(f"<@&{self.role_id}>\n```Zemřeli jste!\nCyklus začal: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\nIterací před smrtí: {self.iterations}```")
         self.iterations = 0
@@ -40,7 +42,7 @@ class LostModule(Cog):
         self.lost_prompt.stop()
         self.lost_failed.stop()
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=235)
     async def lost_prompt(self):
         if self.first_prompt_loop:
             self.first_prompt_loop = False
@@ -55,6 +57,7 @@ class LostModule(Cog):
         if self.loop_running:
             await ctx.respond("To určite vole")
             return
+        info("Cycle started")
         await ctx.respond("So it begins...")
         self.can_reset = False
         self.iterations = 0
@@ -74,6 +77,7 @@ class LostModule(Cog):
             await ctx.respond("Špatně!")
             return
         else:
+            info("Cycle reset")
             await ctx.respond("Přežijete... prozatím. See you in 4 hours <:koteseni:1354216680800391268>")
             self.can_reset = False
             self.iterations += 1
