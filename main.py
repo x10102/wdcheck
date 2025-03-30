@@ -10,7 +10,7 @@ from logging import info, warning, debug, error, critical
 import os
 from lost import LostModule
 
-from models import database, WDApplication, User
+from models import LostCycle, LostCycleReset, database, WDApplication, User
 from constants import PM_VERB
 from wdutils import *
 from textutils import print_application_number
@@ -182,6 +182,6 @@ if __name__ == "__main__":
     info("Initializing database")
     database.init(os.environ.get("DB_FILE", "applications.db"))
     database.connect()
-    database.create_tables([User, WDApplication])
+    database.create_tables([User, WDApplication, LostCycle, LostCycleReset])
     bot.add_cog(LostModule(bot))
     bot.run(os.environ.get("BOT_TOKEN"))

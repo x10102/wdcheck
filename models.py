@@ -27,3 +27,14 @@ class WDApplication(Model):
 
     class Meta:
         database = database
+
+class LostCycle(Model):
+    id = AutoField()
+    started = DateTimeField()
+    ended = DateTimeField(null=True)
+    
+class LostCycleReset(Model):
+    id = AutoField()
+    timestamp = DateTimeField()
+    cycle = ForeignKeyField(LostCycle, backref='resets')
+    user = ForeignKeyField(User, backref='resets')
