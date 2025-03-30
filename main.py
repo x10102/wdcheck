@@ -14,6 +14,7 @@ from models import LostCycle, LostCycleReset, database, WDApplication, User
 from constants import PM_VERB
 from wdutils import *
 from textutils import print_application_number
+from discordutils import ensure_user
 
 bot = discord.Bot()
 PROGRAM_VERSION = "1.0.0"
@@ -43,15 +44,6 @@ def ensure_config():
     if not all([k in dict(os.environ) for k in ['WIKI_USER', 'WIKI_PASSWORD', 'WIKI_NAME', 'BOT_TOKEN', 'CONSOLE_CHANNEL']]):
         critical("Missing configuration values, exiting...")
         exit(-1)
-
-# Ensure that a user exists in the database
-# We can't use get_or_create as that will create a new user when username is changed
-def ensure_user(user: discord.Member | discord.User):
-    if(User.select().where(User.discord_id == user.id).exists()):
-        return User.get(User.discord_id == user.id)
-    new_user = User(discord_id=user.id, discord_name=user.name, display_name=user.display_name)
-    new_user.save()
-    return new_user
 
 class WDAppConfirmView(discord.ui.View):
     def __init__(self, application, record: WDApplication):

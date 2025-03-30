@@ -11,6 +11,8 @@ import discord
 
 # Internal
 from constants import THE_NUMBERS
+from discordutils import ensure_user
+from models import LostCycle, LostCycleReset
 
 # !WARNING: SHIT CODE AHEAD
 # TODO: Refactor this sometime
@@ -27,6 +29,7 @@ class LostModule(Cog):
         self.first_prompt_loop = True
         self.first_fail_loop = True
         self.loop_running = False
+        self.current_cycle = None
 
     @tasks.loop(minutes=240)
     async def lost_failed(self):
@@ -36,7 +39,7 @@ class LostModule(Cog):
         
         info("Cycle failed")
         channel = self.bot.get_channel(self.channel_id)
-        await channel.send(f"<@&{self.role_id}>\n```Zemřeli jste!\nCyklus začal: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\nIterací před smrtí: {self.iterations}```")
+        await channel.send(f"<@&{self.role_id}>\n```Zemřeli jste!\nCyklus začal: {self.started_at.strftime('%H:%M:%S %d/%m/%Y')}\nIterací před smrtí: {self.iterations}```")
         self.iterations = 0
         self.can_reset = False
         self.lost_prompt.stop()
@@ -66,6 +69,10 @@ class LostModule(Cog):
         self.first_prompt_loop = True
         self.first_fail_loop = True
         self.loop_running = True
+
+        self.current_cycle = LostCycle()
+        self.current_cycle.save()
+
         self.lost_prompt.start()
         self.lost_failed.start()
 
@@ -93,5 +100,11 @@ class LostModule(Cog):
             self.first_prompt_loop = True
             self.lost_failed.restart()
             self.lost_prompt.restart()
+            responder = ensure_user(ctx.user)
+            creset = LostCycleReset()
+            creset.cycle = self.current_cycle
+            creset.user = responder
+            creset.save()
+
 
     
