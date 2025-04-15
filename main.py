@@ -3,6 +3,7 @@ import wikidot
 import logging
 import nest_asyncio
 import random
+import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 from discord.ext import tasks
@@ -108,37 +109,42 @@ async def check_applications():
     info("Running check task")
     count = 0
     applications = list()
-    with wikidot.Client(username=os.environ.get("WIKI_USER"), password=os.environ.get("WIKI_PASSWORD")) as client:
+    try:
+        with wikidot.Client(username=os.environ.get("WIKI_USER"), password=os.environ.get("WIKI_PASSWORD")) as client:
 
-        channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
-        site = client.site.get(os.environ.get("WIKI_NAME"))
-        applications = site.get_applications()
+            channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+            site = client.site.get(os.environ.get("WIKI_NAME"))
+            applications = site.get_applications()
 
-        for application in applications:
-            if(WDApplication.select()
-                .where((WDApplication.resolved == False) & (WDApplication.user_id == application.user.id))):
-                info(f"Skipping application for {application.user.name} (already in progress)")
-                continue # Application already in progress
-            count += 1
-            appl = WDApplication(user_id = application.user.id, username = application.user.name, unix_name = application.user.unix_name, text = application.text)
-            info(f"New application recorded (User: {application.user})")
-            appl.save()
-            
-            embed = discord.Embed(
-                title="Žádost čeká na schválení",
-                description=f"Od uživatele [{application.user.name}](https://www.wikidot.com/user:info/{application.user.unix_name})",
-                color=discord.Colour.blurple(),
-            )
-            embed.add_field(name="Zpráva", value=f"```{application.text}```")
-            await channel.send(embed=embed, view=WDAppConfirmView(application, appl))
-
-        for unresolved in WDApplication.select().where(WDApplication.resolved == False):
-            if not any([a.user.id == unresolved.user_id for a in applications]):
-                unresolved.resolved = True
-                unresolved.resolved_externally = True
-                unresolved.accepted = None
-                unresolved.save()
+            for application in applications:
+                if(WDApplication.select()
+                    .where((WDApplication.resolved == False) & (WDApplication.user_id == application.user.id))):
+                    info(f"Skipping application for {application.user.name} (already in progress)")
+                    continue # Application already in progress
+                count += 1
+                appl = WDApplication(user_id = application.user.id, username = application.user.name, unix_name = application.user.unix_name, text = application.text)
+                info(f"New application recorded (User: {application.user})")
+                appl.save()
                 
+                embed = discord.Embed(
+                    title="Žádost čeká na schválení",
+                    description=f"Od uživatele [{application.user.name}](https://www.wikidot.com/user:info/{application.user.unix_name})",
+                    color=discord.Colour.blurple(),
+                )
+                embed.add_field(name="Zpráva", value=f"```{application.text}```")
+                await channel.send(embed=embed, view=WDAppConfirmView(application, appl))
+
+            for unresolved in WDApplication.select().where(WDApplication.resolved == False):
+                if not any([a.user.id == unresolved.user_id for a in applications]):
+                    unresolved.resolved = True
+                    unresolved.resolved_externally = True
+                    unresolved.accepted = None
+                    unresolved.save()
+    except Exception as e:
+        error(f"Error encountered in check task: {str(e)}")
+        channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+        channel.send(content=f"Při stahování žádanek nastala chyba: {str(e)}")
+
     return count
 
 @discord.default_permissions(administrator=True)
