@@ -143,7 +143,7 @@ async def check_applications():
     except Exception as e:
         error(f"Error encountered in check task: {str(e)}")
         channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
-        channel.send(content=f"Při stahování žádanek nastala chyba: {str(e)}")
+        await channel.send(content=f"Při stahování žádanek nastala chyba: {str(e)}")
 
     return count
 
