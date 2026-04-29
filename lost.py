@@ -42,19 +42,25 @@ class LostModule(Cog):
         await channel.send(f"<@&{self.role_id}>\n```Zemřeli jste!\nCyklus začal: {self.started_at.strftime('%H:%M:%S %d/%m/%Y')}\nIterací před smrtí: {self.iterations}```")
         self.iterations = 0
         self.can_reset = False
+        self.loop_running = False
         self.lost_prompt.stop()
         self.lost_failed.stop()
+        self.current_cycle.ended = datetime.now()
+        self.current_cycle.save()
 
     @tasks.loop(minutes=235)
     async def lost_prompt(self):
+        # The task runs once immediately when scheduled
+        # We don't want that, so just skip the first iteration with a flag
+        # Way easier than digging around in the discord library code
         if self.first_prompt_loop:
             self.first_prompt_loop = False
             return
         channel = self.bot.get_channel(self.channel_id)
         await channel.send(f"<@&{self.role_id}> Je čas...")
+        # No clue why we're setting that here it gets reset in reset() anyway
         self.first_prompt_loop = True
         self.can_reset = True
-
 
     @slash_command(description="Start the cycle")
     async def start(self, ctx: discord.ApplicationContext):
