@@ -43,8 +43,8 @@ class LostModule(Cog):
         self.iterations = 0
         self.can_reset = False
         self.loop_running = False
-        self.lost_prompt.stop()
-        self.lost_failed.stop()
+        self.lost_prompt.cancel()
+        self.lost_failed.cancel()
         self.current_cycle.ended = datetime.now()
         self.current_cycle.save()
 
