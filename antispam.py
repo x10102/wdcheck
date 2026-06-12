@@ -125,8 +125,7 @@ class AntispamModule(Cog):
         console = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
         action_verb = random.choice(TIMEOUTED_VERB)
 
-        embed = discord.Embed(title="Detekován spam!",
-                      description=f"<@&{os.environ.get("ADMIN_ROLE_ID")}>")
+        embed = discord.Embed(title="Detekován spam!")
 
         embed.add_field(name="Jméno Uživatele",
                         value=str(message_author.name),
@@ -149,7 +148,9 @@ class AntispamModule(Cog):
         
         embed.color = discord.Color.blue()
         
-        await console.send(embed=embed, view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id], event_record))
+        await console.send(content=f"<@&{os.environ.get("ADMIN_ROLE_ID")}>",
+                            embed=embed, 
+                            view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id], event_record))
         del self.offending_messages[offending_message.author.id]
 
     @staticmethod
