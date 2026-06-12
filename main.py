@@ -121,7 +121,7 @@ async def check_applications():
 
             channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
             site = client.site.get(os.environ.get("WIKI_NAME"))
-            applications = site.get_applications()
+            applications = site.applications
 
             for application in applications:
                 if(WDApplication.select()
