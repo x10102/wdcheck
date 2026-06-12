@@ -1,4 +1,6 @@
-from peewee import *
+from peewee import (AutoField,
+                    CharField, IntegerField, TimestampField, BooleanField, DateTimeField,
+                    ForeignKeyField, Model, TextField, SqliteDatabase)
 import datetime
 
 database = SqliteDatabase(None)
@@ -36,3 +38,9 @@ class LostCycleReset(ModelBase):
     timestamp = DateTimeField(default=datetime.datetime.now)
     cycle = ForeignKeyField(LostCycle, backref='resets')
     user = ForeignKeyField(User, backref='resets')
+
+class AntispamTriggerEvent(ModelBase):
+    id = AutoField()
+    timestamp = DateTimeField(default=datetime.datetime.now)
+    user = ForeignKeyField(User, backref='mutes')
+    muted_for = DateTimeField()
