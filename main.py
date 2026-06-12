@@ -101,6 +101,11 @@ class WDAppConfirmView(discord.ui.View):
 @bot.event
 async def on_ready():
     info(f"{bot.user} is ready to go!")
+    if(os.environ.get("SYNC_COMMANDS_ON_STARTUP", "false") == "true"):
+        info("Syncing commands")
+        await bot.sync_commands()
+        channel = bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+        await channel.send("Nové příkazy synchronizovány s Discord bot API, Čýmsi nezapomeň upravit .env")
     if not check_applications.is_running() \
         and os.environ.get("DISABLE_APPLICATION_CHECK") != 'true':
         info("Scheduled check task")
