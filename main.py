@@ -178,6 +178,13 @@ async def ping(ctx: discord.ApplicationContext):
     info(f"Sending ping as response to {ctx.user.name} ({ctx.user.id})")
     await ctx.respond("🐈")
 
+@discord.default_permissions(administrator=True)
+@bot.slash_command(name="synccommands", description="Synchronizuje příkazy s Discordem po aktualizaci, nepoužívat pokud nevíte co to znamená")
+async def cmd_sync(ctx: discord.ApplicationContext):
+    info(f"Synchronizing commands at request of {ctx.user.name} ({ctx.user.id})")
+    await bot.sync_commands()
+    await ctx.respond("Synchronizace dokončena, pro použití nových příkazů restartujte Discord (CTRL+R)")
+
 if __name__ == "__main__":
     setup_logger(os.environ.get("LOG_FILE", "bot.log"))
     info("Logger initialized")
