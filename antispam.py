@@ -75,6 +75,7 @@ class AntiSpamEventView(discord.ui.View):
 
         await self.delete_messages()
         await self.muted_user.kick(reason="Spam")
+        self.disable_all_items()
 
         info(f"Messages deleted and {self.muted_user.name} (ID: {self.muted_user.id}) kicked")
         await self.resolve_interaction(interaction, "Vyhostěn do dalekých krajin")
@@ -87,9 +88,9 @@ class AntispamModule(Cog):
         self.offending_messages: dict[int, set[discord.Message]] = {}
         self.repeat_counters: dict[int, int] = {}
         self.author_locks: dict[int, asyncio.Lock] = {}
-        self.repeat_timeout = timedelta(minutes=5)
-        self.default_mute = timedelta(hours=5)
-        self.spam_limit = 2
+        self.repeat_timeout = timedelta(minutes=int(os.environ.get("ANTISPAM_WINDOW_MINUTES", 5)))
+        self.default_mute = timedelta(hours=int(os.environ.get("ANTISPAM_TIMEOUT_HOURS", 12)))
+        self.spam_limit = int(os.environ.get("ANTISPAM_WINDOW_SIZE", 4))
         info("AntiSpam module loaded")
 
     def _lock_for_user(self, user_id: int) -> asyncio.Lock:
@@ -132,32 +133,46 @@ class AntispamModule(Cog):
         del self.offending_messages[offending_message.author.id]
 
     @staticmethod
-    async def __message_to_content(msg: discord.Message, hash_attachments: bool = True):
+    def __message_to_content(msg: discord.Message):
+        return MessageContent(msg, msg.content, set(), msg.created_at)
+    
+    @staticmethod
+    async def __hash_attachments(content: MessageContent):
+        # No attachments, return
+        if len(content.message_object.attachments) == 0:
+            return content
         
-        hashes = set()
-
-        if not hash_attachments or len(msg.attachments) == 0:
-            return MessageContent(msg, msg.content, set(), msg.created_at)
-
-        for att in msg.attachments:
+        # Already hashed, return
+        if len(content.attachment_hashes) > 0:
+            return content
+        
+        for att in content.message_object.attachments:
             info(f"Processing attachment: {att.filename}")
             hasher = blake2b(digest_size=16)
             async for chunk in att.read_chunked(65536):
                 hasher.update(chunk)
-            hashes.add(hasher.hexdigest())
+            content.attachment_hashes.add(hasher.hexdigest())
 
-        return MessageContent(msg, msg.content, hashes, msg.created_at)
+        return content
+
+    @staticmethod
+    def __attachments_match(first: MessageContent, other: MessageContent) -> bool:
+        # Check that the count and sizes of attachments match
+        if len(first.message_object.attachments) != len(other.message_object.attachments):
+            return False
+        return all([att_self.size == att_other.size 
+                    for att_self, att_other 
+                    in zip(first.message_object.attachments, other.message_object.attachments)])
 
     @Cog.listener()
     async def on_message(self, message: Message):
         # Skip messages from bots and system
         if not message.author or message.author.bot:
-            info("Ignoring system message")
             return
         
         async with self._lock_for_user(message.author.id):
 
-            current_message = await AntispamModule.__message_to_content(message)
+            current_message = AntispamModule.__message_to_content(message)
             author = message.author.id
 
             # No recorded messages yet, record the author and return
@@ -169,13 +184,17 @@ class AntispamModule(Cog):
 
             previous_message = self.previous_messages[author]
 
-            # Previous message was too long ago, reset the counter and return
-            if message.created_at - previous_message.timestamp > self.repeat_timeout:
+            # Previous message was too long ago or attachments don't match, reset the counter and return
+            if message.created_at - previous_message.timestamp > self.repeat_timeout\
+                or not AntispamModule.__attachments_match(previous_message, current_message):
                 self.repeat_counters[author] = 0
                 self.previous_messages[author] = current_message
                 if author in self.offending_messages:
                     del self.offending_messages[author]
                 return
+            
+            await AntispamModule.__hash_attachments(current_message)
+            await AntispamModule.__hash_attachments(previous_message)
             
             # Messages match and aren't too far apart, increment the counter
             if current_message == previous_message:
@@ -185,11 +204,12 @@ class AntispamModule(Cog):
                 self.offending_messages[author].add(previous_message.message_object)
                 self.offending_messages[author].add(current_message.message_object)
                 self.repeat_counters[author] += 1
-            else:
-                self.previous_messages[author] = current_message
+
+            # Store the current message so that the timestamps are correct
+            self.previous_messages[author] = current_message
             
             if self.repeat_counters[author] >= self.spam_limit:
                 self.repeat_counters[author] = 0
                 await cast(discord.Member, message.author).timeout_for(self.default_mute)
-                warning(f"Timing out {message.author.name} (ID: {message.author.id}) for 5 hours")
+                warning(f"Timing out {message.author.name} (ID: {message.author.id}) for {self.default_mute} hours")
                 await self.notify_moderators(message)
