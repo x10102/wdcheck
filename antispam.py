@@ -1,0 +1,195 @@
+from discord.ext.commands.cog import Cog
+from discord import Message
+import discord
+from logging import info, warning, debug
+from dataclasses import dataclass, field
+from hashlib import blake2b
+from datetime import datetime, timedelta
+from typing import cast
+import os
+import random
+import asyncio
+from constants import TIMEOUTED_VERB
+from enum import IntEnum
+
+class SpamReportField(IntEnum):
+    USERNAME = 0
+    USER_ID = 1
+    MESSAGE_CONTENT = 2
+    ATTACHMENT_COUNT = 3
+    TIMESTAMP = 4
+    ACTION = 5
+
+@dataclass
+class MessageContent:
+    message_object: discord.Message = field(compare=False)
+    text: str
+    attachment_hashes: set[str]
+    timestamp: datetime = field(compare=False)
+
+class AntiSpamEventView(discord.ui.View):
+    def __init__(self, muted_user: discord.Member, offending_message_list: set[discord.Message]):
+        super().__init__(timeout=None)
+        self.muted_user: discord.Member = muted_user
+        self.offending_messages: set[discord.Message] = offending_message_list
+
+    async def delete_messages(self):
+        for msg in self.offending_messages:
+            info(f"Deleting message ID {msg.id}")
+            await msg.delete()
+
+    async def resolve_interaction(self, interaction: discord.Interaction, new_action: str):
+        embed = interaction.message.embeds[0]
+        embed.add_field(name="Vyřešil/a",
+                        value=interaction.user.display_name,
+                        inline=False)
+        
+        new_action = f"~~{embed.fields[SpamReportField.ACTION].value}~~ {new_action}"
+        embed.set_field_at(
+            SpamReportField.ACTION,
+            name="Akce",
+            value=new_action,
+            inline=False
+        )
+        embed.color = discord.Color.brand_green()
+        await interaction.response.edit_message(view=self, embed=embed)
+
+    @discord.ui.button(label="Zrušit mute", row=0, style=discord.ButtonStyle.primary)
+    async def first_button_callback(self, button, interaction: discord.Interaction):
+        info(f"Timeout canceled for {self.muted_user.name} (ID: {self.muted_user.id})")
+        await self.muted_user.remove_timeout()
+        self.disable_all_items()
+        await self.resolve_interaction(interaction, "Propuštěn zpět na server")
+
+    @discord.ui.button(label="Smazat zprávy", row=0, style=discord.ButtonStyle.danger)
+    async def second_button_callback(self, button, interaction: discord.Interaction):
+
+        await self.delete_messages()
+
+        info(f"Offending messages deleted for {self.muted_user.name} (ID: {self.muted_user.id})")
+        self.disable_all_items()
+        await self.resolve_interaction(interaction, "Vymazán z historie")
+
+    @discord.ui.button(label="Smazat + kick", row=0, style=discord.ButtonStyle.danger)
+    async def third_button_callback(self, button, interaction: discord.Interaction):
+
+        await self.delete_messages()
+        await self.muted_user.kick(reason="Spam")
+
+        info(f"Messages deleted and {self.muted_user.name} (ID: {self.muted_user.id}) kicked")
+        await self.resolve_interaction(interaction, "Vyhostěn do dalekých krajin")
+
+class AntispamModule(Cog):
+
+    def __init__(self, bot: discord.Bot):
+        self.bot: discord.Bot = bot
+        self.previous_messages: dict[int, MessageContent] = {}
+        self.offending_messages: dict[int, set[discord.Message]] = {}
+        self.repeat_counters: dict[int, int] = {}
+        self.author_locks: dict[int, asyncio.Lock] = {}
+        self.repeat_timeout = timedelta(minutes=5)
+        self.default_mute = timedelta(hours=5)
+        self.spam_limit = 2
+        info("AntiSpam module loaded")
+
+    def _lock_for_user(self, user_id: int) -> asyncio.Lock:
+        lock = self.author_locks.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.author_locks[user_id] = lock
+        return lock
+
+    async def notify_moderators(self, offending_message: discord.Message):
+        message_author = offending_message.author
+        console = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+        action_verb = random.choice(TIMEOUTED_VERB)
+
+        embed = discord.Embed(title="Detekován spam!",
+                      description=f"<@&{os.environ.get("ADMIN_ROLE_ID")}>")
+
+        embed.add_field(name="Jméno Uživatele",
+                        value=str(message_author.name),
+                        inline=False)
+        embed.add_field(name="ID Uživatele",
+                        value=str(message_author.id),
+                        inline=False)
+        embed.add_field(name="Obsah zprávy",
+                        value=f"```\n{offending_message.content}\n```",
+                        inline=False)
+        embed.add_field(name="Počet příloh",
+                        value=str(len(offending_message.attachments)),
+                        inline=False)
+        embed.add_field(name="Odesláno",
+                        value=offending_message.created_at.strftime('%a, %d %b %Y %H:%M:%S GMT'),
+                        inline=False)
+        embed.add_field(name="Akce",
+                        value=f"{action_verb} na {self.default_mute.seconds // 3600} hodin",
+                        inline=False)
+        
+        embed.color = discord.Color.blue()
+        
+        await console.send(embed=embed, view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id]))
+        del self.offending_messages[offending_message.author.id]
+
+    @staticmethod
+    async def __message_to_content(msg: discord.Message, hash_attachments: bool = True):
+        
+        hashes = set()
+
+        if not hash_attachments or len(msg.attachments) == 0:
+            return MessageContent(msg, msg.content, set(), msg.created_at)
+
+        for att in msg.attachments:
+            info(f"Processing attachment: {att.filename}")
+            hasher = blake2b(digest_size=16)
+            async for chunk in att.read_chunked(65536):
+                hasher.update(chunk)
+            hashes.add(hasher.hexdigest())
+
+        return MessageContent(msg, msg.content, hashes, msg.created_at)
+
+    @Cog.listener()
+    async def on_message(self, message: Message):
+        # Skip messages from bots and system
+        if not message.author or message.author.bot:
+            info("Ignoring system message")
+            return
+        
+        async with self._lock_for_user(message.author.id):
+
+            current_message = await AntispamModule.__message_to_content(message)
+            author = message.author.id
+
+            # No recorded messages yet, record the author and return
+            if author not in self.previous_messages:
+                self.previous_messages[author] = current_message
+                self.repeat_counters[author] = 0
+                info(f"First message by {author}")
+                return
+
+            previous_message = self.previous_messages[author]
+
+            # Previous message was too long ago, reset the counter and return
+            if message.created_at - previous_message.timestamp > self.repeat_timeout:
+                self.repeat_counters[author] = 0
+                self.previous_messages[author] = current_message
+                if author in self.offending_messages:
+                    del self.offending_messages[author]
+                return
+            
+            # Messages match and aren't too far apart, increment the counter
+            if current_message == previous_message:
+                info(f"Repeated message by {message.author.name} (ID: {message.author.id}), spam counter increased to {self.repeat_counters[author] + 1}")
+                if author not in self.offending_messages:
+                    self.offending_messages[author] = set()
+                self.offending_messages[author].add(previous_message.message_object)
+                self.offending_messages[author].add(current_message.message_object)
+                self.repeat_counters[author] += 1
+            else:
+                self.previous_messages[author] = current_message
+            
+            if self.repeat_counters[author] >= self.spam_limit:
+                self.repeat_counters[author] = 0
+                await cast(discord.Member, message.author).timeout_for(self.default_mute)
+                warning(f"Timing out {message.author.name} (ID: {message.author.id}) for 5 hours")
+                await self.notify_moderators(message)
