@@ -156,6 +156,14 @@ async def view_applications(ctx: discord.ApplicationContext):
     await ctx.respond(f"{print_application_number(new_count)}", ephemeral=True)
 
 @discord.default_permissions(administrator=True)
+@bot.slash_command(name="kill", description="Ukončí bota v případě že se zblázní")
+async def kill_process(ctx: discord.ApplicationContext):
+    critical(f"Received emergency shutdown command from {ctx.user.name} ({ctx.user.id}), exiting immediately")
+    await ctx.respond("i guess bro")
+    await bot.close()
+    exit(67)
+
+@discord.default_permissions(administrator=True)
 @bot.slash_command(name="stats", description="Zobrazí statistiky")
 async def view_stats(ctx: discord.ApplicationContext):
     info(f"Sending stats as response to {ctx.user.name} ({ctx.user.id})")
