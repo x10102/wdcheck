@@ -10,6 +10,7 @@ from discord.ext import tasks
 from logging import info, warning, debug, error, critical
 import os
 from lost import LostModule
+from antispam import AntispamModule
 
 from models import LostCycle, LostCycleReset, database, WDApplication, User
 from constants import PM_VERB
@@ -17,7 +18,7 @@ from wdutils import *
 from textutils import print_application_number
 from discordutils import ensure_user
 
-bot = discord.Bot()
+bot = discord.Bot(intents=discord.Intents.all())
 PROGRAM_VERSION = "1.0.0"
 
 # Set up the logging format and target
@@ -100,7 +101,8 @@ class WDAppConfirmView(discord.ui.View):
 @bot.event
 async def on_ready():
     info(f"{bot.user} is ready to go!")
-    if not check_applications.is_running():
+    if not check_applications.is_running() \
+        and os.environ.get("DISABLE_APPLICATION_CHECK") != 'true':
         info("Scheduled check task")
         check_applications.start()
 
@@ -164,7 +166,7 @@ async def view_stats(ctx: discord.ApplicationContext):
 
 @discord.default_permissions(administrator=True)
 @bot.slash_command(name="ping", description="Mňau")
-async def view_stats(ctx: discord.ApplicationContext):
+async def ping(ctx: discord.ApplicationContext):
     info(f"Sending ping as response to {ctx.user.name} ({ctx.user.id})")
     await ctx.respond("🐈")
 
@@ -181,5 +183,8 @@ if __name__ == "__main__":
     database.init(os.environ.get("DB_FILE", "applications.db"))
     database.connect()
     database.create_tables([User, WDApplication, LostCycle, LostCycleReset])
-    bot.add_cog(LostModule(bot))
+    if os.environ.get("DISABLE_LOST") != 'true':
+        bot.add_cog(LostModule(bot))
+    if os.environ.get("DISABLE_ANTISPAM") != 'true':
+        bot.add_cog(AntispamModule(bot))
     bot.run(os.environ.get("BOT_TOKEN"))
