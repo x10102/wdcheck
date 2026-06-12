@@ -12,7 +12,7 @@ import os
 from lost import LostModule
 from antispam import AntispamModule
 
-from models import LostCycle, LostCycleReset, database, WDApplication, User
+from models import LostCycle, LostCycleReset, database, WDApplication, User, AntispamTriggerEvent, SpamAttachmentHash
 from constants import PM_VERB
 from wdutils import *
 from textutils import print_application_number
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     info("Initializing database")
     database.init(os.environ.get("DB_FILE", "applications.db"))
     database.connect()
-    database.create_tables([User, WDApplication, LostCycle, LostCycleReset])
+    database.create_tables([User, WDApplication, LostCycle, LostCycleReset, AntispamTriggerEvent, SpamAttachmentHash])
     if os.environ.get("DISABLE_LOST") != 'true':
         bot.add_cog(LostModule(bot))
     if os.environ.get("DISABLE_ANTISPAM") != 'true':

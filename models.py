@@ -1,7 +1,13 @@
 from peewee import (AutoField,
                     CharField, IntegerField, TimestampField, BooleanField, DateTimeField,
-                    ForeignKeyField, Model, TextField, SqliteDatabase)
+                    ForeignKeyField, Model, TextField, SqliteDatabase, TimeField)
 import datetime
+from enum import IntEnum, auto
+
+class AntiSpamResolveAction(IntEnum):
+    UNMUTE = auto()
+    DELETE_MESSAGES = auto()
+    DELETE_AND_KICK = auto()
 
 database = SqliteDatabase(None)
 
@@ -41,6 +47,17 @@ class LostCycleReset(ModelBase):
 
 class AntispamTriggerEvent(ModelBase):
     id = AutoField()
-    timestamp = DateTimeField(default=datetime.datetime.now)
-    user = ForeignKeyField(User, backref='mutes')
-    muted_for = DateTimeField()
+    event_timestamp = DateTimeField(default=datetime.datetime.now)
+    resolution_timestamp = DateTimeField(null=True, default=None)
+    offending_user = ForeignKeyField(User, backref='mutes')
+    resolving_user = ForeignKeyField(User, backref='resolved_incidents', null=True, default=None)
+    moderator_action = IntegerField(null=True)
+    muted_for = TimeField()
+    message_content = TextField()
+    attachment_count = IntegerField()
+    
+class SpamAttachmentHash(ModelBase):
+    id = AutoField()
+    hexdigest = CharField(32) # We use BLAKE2b-128, which means 16 byte digest - 16 hex chars
+    filename = TextField()
+    event = ForeignKeyField(AntispamTriggerEvent, backref='attachments')

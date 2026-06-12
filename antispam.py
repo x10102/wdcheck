@@ -9,8 +9,12 @@ from typing import cast
 import os
 import random
 import asyncio
+import discordutils
 from constants import TIMEOUTED_VERB
 from enum import IntEnum
+
+from models import AntispamTriggerEvent, AntiSpamResolveAction, SpamAttachmentHash
+
 
 class SpamReportField(IntEnum):
     USERNAME = 0
@@ -28,10 +32,11 @@ class MessageContent:
     timestamp: datetime = field(compare=False)
 
 class AntiSpamEventView(discord.ui.View):
-    def __init__(self, muted_user: discord.Member, offending_message_list: set[discord.Message]):
+    def __init__(self, muted_user: discord.Member, offending_message_list: set[discord.Message], event_record: AntispamTriggerEvent):
         super().__init__(timeout=None)
         self.muted_user: discord.Member = muted_user
         self.offending_messages: set[discord.Message] = offending_message_list
+        self._event_record = event_record
 
     async def delete_messages(self):
         for msg in self.offending_messages:
@@ -54,11 +59,20 @@ class AntiSpamEventView(discord.ui.View):
         embed.color = discord.Color.brand_green()
         await interaction.response.edit_message(view=self, embed=embed)
 
+        self._event_record.resolution_timestamp = datetime.now()
+        self._event_record.resolving_user = discordutils.ensure_user(interaction.user)
+        self._event_record.save()
+
     @discord.ui.button(label="Zrušit mute", row=0, style=discord.ButtonStyle.primary)
     async def first_button_callback(self, button, interaction: discord.Interaction):
-        info(f"Timeout canceled for {self.muted_user.name} (ID: {self.muted_user.id})")
+
         await self.muted_user.remove_timeout()
+
+        info(f"Timeout canceled for {self.muted_user.name} (ID: {self.muted_user.id})")
         self.disable_all_items()
+
+        self._event_record.moderator_action = AntiSpamResolveAction.UNMUTE
+
         await self.resolve_interaction(interaction, "Propuštěn zpět na server")
 
     @discord.ui.button(label="Smazat zprávy", row=0, style=discord.ButtonStyle.danger)
@@ -68,6 +82,9 @@ class AntiSpamEventView(discord.ui.View):
 
         info(f"Offending messages deleted for {self.muted_user.name} (ID: {self.muted_user.id})")
         self.disable_all_items()
+
+        self._event_record.moderator_action = AntiSpamResolveAction.DELETE_MESSAGES
+
         await self.resolve_interaction(interaction, "Vymazán z historie")
 
     @discord.ui.button(label="Smazat + kick", row=0, style=discord.ButtonStyle.danger)
@@ -77,8 +94,11 @@ class AntiSpamEventView(discord.ui.View):
         await self.muted_user.kick(reason="Spam")
         self.disable_all_items()
 
+        self._event_record.moderator_action = AntiSpamResolveAction.DELETE_AND_KICK
+
         info(f"Messages deleted and {self.muted_user.name} (ID: {self.muted_user.id}) kicked")
         await self.resolve_interaction(interaction, "Vyhostěn do dalekých krajin")
+        
 
 class AntispamModule(Cog):
 
@@ -100,7 +120,7 @@ class AntispamModule(Cog):
             self.author_locks[user_id] = lock
         return lock
 
-    async def notify_moderators(self, offending_message: discord.Message):
+    async def notify_moderators(self, offending_message: discord.Message, event_record: AntispamTriggerEvent):
         message_author = offending_message.author
         console = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
         action_verb = random.choice(TIMEOUTED_VERB)
@@ -129,7 +149,7 @@ class AntispamModule(Cog):
         
         embed.color = discord.Color.blue()
         
-        await console.send(embed=embed, view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id]))
+        await console.send(embed=embed, view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id], event_record))
         del self.offending_messages[offending_message.author.id]
 
     @staticmethod
@@ -184,9 +204,10 @@ class AntispamModule(Cog):
 
             previous_message = self.previous_messages[author]
 
-            # Previous message was too long ago or attachments don't match, reset the counter and return
+            # Previous message was too long ago or attachments/text don't match, reset the counter and return
             if message.created_at - previous_message.timestamp > self.repeat_timeout\
-                or not AntispamModule.__attachments_match(previous_message, current_message):
+                or not AntispamModule.__attachments_match(previous_message, current_message)\
+                or previous_message.text != current_message.text:
                 self.repeat_counters[author] = 0
                 self.previous_messages[author] = current_message
                 if author in self.offending_messages:
@@ -212,4 +233,21 @@ class AntispamModule(Cog):
                 self.repeat_counters[author] = 0
                 await cast(discord.Member, message.author).timeout_for(self.default_mute)
                 warning(f"Timing out {message.author.name} (ID: {message.author.id}) for {self.default_mute} hours")
-                await self.notify_moderators(message)
+
+                offending_user = discordutils.ensure_user(message.author)
+                event_record = AntispamTriggerEvent.create(
+                    event_timestamp = datetime.now(),
+                    offending_user = offending_user,
+                    muted_for = datetime.min + self.default_mute,
+                    message_content = message.content,
+                    attachment_count = len(message.attachments)
+                )
+
+                for idx, hash in enumerate(current_message.attachment_hashes):
+                    SpamAttachmentHash.create(
+                        hexdigest=hash,
+                        filename=message.attachments[idx].filename,
+                        event=event_record
+                    )
+
+                await self.notify_moderators(message, event_record)
