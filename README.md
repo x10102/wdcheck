@@ -1,5 +1,5 @@
 # Monika.AIC
-A secondary discord bot for the Czech SCP branch (alongside [Thorn](https://github.com/scp-cs/Thorn)
+A secondary discord bot for the Czech SCP branch (alongside [Thorn](https://github.com/scp-cs/Thorn))
 
 - Forwards Wikidot site applications to the server and allows responding to them directly on Discord
 - Detects spam bots / hacked accounts and puts them in timeout until a moderator has the chance to respond, logs incidents
