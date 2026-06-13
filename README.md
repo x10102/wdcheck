@@ -1,5 +1,8 @@
-# WDCheck
-A discord bot for viewing an responding to WikiDot site applications
+# Monika.AIC
+A secondary discord bot for the Czech SCP branch (alongside [Thorn](https://github.com/scp-cs/Thorn)
+
+- Forwards Wikidot site applications to the server and allows responding to them directly on Discord
+- Detects spam bots / hacked accounts and puts them in timeout until a moderator has the chance to respond, logs incidents
 
 # Usage
 1. Create a new WikiDot account and make it an administrator on your wiki
