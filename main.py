@@ -4,6 +4,7 @@ import nest_asyncio # type: ignore[import-untyped]
 from dotenv import load_dotenv
 from logging import info, warning, critical
 import os
+from peewee import Model
 from modules.lost import LostModule
 from modules.antispam import AntispamModule
 from core.exceptions import MissingConfigError
@@ -14,7 +15,10 @@ from core.modulebase import ModuleBase
 from core.models import LostCycle, LostCycleReset, database, WDApplication, User, AntispamTriggerEvent, SpamAttachmentHash
 
 bot = discord.Bot(intents=discord.Intents.all())
+
 PROGRAM_VERSION = "1.0.0"
+LOAD_MODULES: list[type[ModuleBase]] = [LostModule, AntispamModule, WikidotApplicationsModule]
+CREATE_MODELS: list[Model] = [User, WDApplication, LostCycle, LostCycleReset, AntispamTriggerEvent, SpamAttachmentHash]
 
 # Set up the logging format and target
 # Logs to stdout and "bot.log" by default
@@ -36,11 +40,6 @@ def setup_logger(filename="bot.log"):
 
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
-
-def ensure_config():
-    if not all([k in dict(os.environ) for k in ['WIKI_USER', 'WIKI_PASSWORD', 'WIKI_NAME', 'BOT_TOKEN', 'CONSOLE_CHANNEL']]):
-        critical("Missing configuration values, exiting...")
-        exit(-1)
 
 @discord.default_permissions(administrator=True)
 @bot.slash_command(name="kill", description="Ukončí bota v případě že se zblázní")
@@ -89,26 +88,24 @@ if __name__ == "__main__":
     # This is needed for running the wikidot library alongside pycord as it uses its own asyncio loop
     nest_asyncio.apply()
     load_dotenv(override=True)
-    ensure_config()
     info("Initializing database")
     database.init(os.environ.get("DB_FILE", "applications.db"))
     database.connect()
-    database.create_tables([User, WDApplication, LostCycle, LostCycleReset, AntispamTriggerEvent, SpamAttachmentHash])
+    database.create_tables(CREATE_MODELS)
 
     info("Loading modules")
-    LOAD_MODULES: list[type[ModuleBase]] = [LostModule, AntispamModule, WikidotApplicationsModule]
-
+    
     for module in LOAD_MODULES:
         if os.environ.get(module.env_override()) == 'true':
-            info(f"Not loading {module.name()} due to env override")
+            info(f"Not loading module: {module.name()} - due to env override")
             continue
         try:
             bot.add_cog(module(bot))
             info(f"Loaded module: {module.name()}")
         except MissingConfigError:
-            warning(f"Not loading {module.name()} due to missing configuration")
+            warning(f"Not loading module: {module.name()} - due to missing configuration")
         except Exception as e:
-            warning(f"Error while loading {module.name()}: {str(e)}")
+            warning(f"Error while loading module: {module.name()}: {str(e)}")
     
     token = os.environ.get("BOT_TOKEN")
     if not token:
