@@ -21,3 +21,5 @@ MESSAGE_REJECT_DEFAULT = "Vaše žádost byla zamítnuta, pro více informací n
 MESSAGE_ACCEPT_DEFAULT = "Vaše žádost byla přijata. Vítejte v Nadaci!"
 
 THE_NUMBERS = "4 8 15 16 23 42"
+
+KOTESENI = "<:koteseni:1354216680800391268>"

@@ -1,7 +1,7 @@
-from discord.ext.commands.cog import Cog
+
 from discord import Message
 import discord
-from logging import info, warning, debug
+from logging import info, warning
 from dataclasses import dataclass, field
 from hashlib import blake2b
 from datetime import datetime, timedelta
@@ -9,11 +9,14 @@ from typing import cast
 import os
 import random
 import asyncio
-import discordutils
+import utils.discordutils as discordutils
 from constants import TIMEOUTED_VERB
 from enum import IntEnum
+from core.exceptions import MissingConfigError
 
-from models import AntispamTriggerEvent, AntiSpamResolveAction, SpamAttachmentHash
+from core.modulebase import ModuleBase
+
+from core.models import AntispamTriggerEvent, AntiSpamResolveAction, SpamAttachmentHash
 
 
 class SpamReportField(IntEnum):
@@ -44,6 +47,10 @@ class AntiSpamEventView(discord.ui.View):
             await msg.delete()
 
     async def resolve_interaction(self, interaction: discord.Interaction, new_action: str):
+        discordutils.check_valid_interaction(interaction)
+        assert interaction.user is not None
+        assert interaction.message is not None
+
         embed = interaction.message.embeds[0]
         embed.add_field(name="Vyřešil/a",
                         value=interaction.user.display_name,
@@ -56,7 +63,7 @@ class AntiSpamEventView(discord.ui.View):
             value=new_action,
             inline=False
         )
-        embed.color = discord.Color.brand_green()
+        embed.colour = discord.Color.brand_green()
         await interaction.response.edit_message(view=self, embed=embed)
 
         self._event_record.resolution_timestamp = datetime.now()
@@ -100,7 +107,15 @@ class AntiSpamEventView(discord.ui.View):
         await self.resolve_interaction(interaction, "Vyhostěn do dalekých krajin")
         
 
-class AntispamModule(Cog):
+class AntispamModule(ModuleBase):
+
+    @staticmethod
+    def env_override():
+        return "DISABLE_ANTISPAM"
+    
+    @staticmethod
+    def name():
+        return "AntiSpam"
 
     def __init__(self, bot: discord.Bot):
         self.bot: discord.Bot = bot
@@ -111,7 +126,10 @@ class AntispamModule(Cog):
         self.repeat_timeout = timedelta(minutes=int(os.environ.get("ANTISPAM_WINDOW_MINUTES", 5)))
         self.default_mute = timedelta(hours=int(os.environ.get("ANTISPAM_TIMEOUT_HOURS", 12)))
         self.spam_limit = int(os.environ.get("ANTISPAM_WINDOW_SIZE", 4))
-        info("AntiSpam module loaded")
+        console_channel = os.environ.get("CONSOLE_CHANNEL")
+        if not console_channel:
+            raise MissingConfigError("No console channel set")
+        self.console_channel = int(console_channel)
 
     def _lock_for_user(self, user_id: int) -> asyncio.Lock:
         lock = self.author_locks.get(user_id)
@@ -122,7 +140,7 @@ class AntispamModule(Cog):
 
     async def notify_moderators(self, offending_message: discord.Message, event_record: AntispamTriggerEvent):
         message_author = offending_message.author
-        console = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+        console = cast(discord.abc.Messageable, self.bot.get_channel(self.console_channel))
         action_verb = random.choice(TIMEOUTED_VERB)
 
         embed = discord.Embed(title="Detekován spam!")
@@ -146,8 +164,13 @@ class AntispamModule(Cog):
                         value=f"{action_verb} na {self.default_mute.seconds // 3600} hodin",
                         inline=False)
         
-        embed.color = discord.Color.blue()
         
+        embed.colour = discord.Color.blue()
+        
+        if isinstance(message_author, discord.User):
+            raise RuntimeError("Got User object where Member object was expected (PM interactions not supported)")
+
+
         await console.send(content=f"<@&{os.environ.get("ADMIN_ROLE_ID")}>",
                             embed=embed, 
                             view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id], event_record))
@@ -185,7 +208,7 @@ class AntispamModule(Cog):
                     for att_self, att_other 
                     in zip(first.message_object.attachments, other.message_object.attachments)])
 
-    @Cog.listener()
+    @ModuleBase.listener()
     async def on_message(self, message: Message):
         # Skip messages from bots and system
         if not message.author or message.author.bot:

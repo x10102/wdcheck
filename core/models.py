@@ -17,9 +17,9 @@ class ModelBase(Model):
 
 class User(ModelBase):
     user_id = AutoField()
-    discord_id = CharField(max_length='20')
-    discord_name = CharField(max_length='128')
-    display_name = CharField(max_length='128')
+    discord_id = CharField(max_length=20)
+    discord_name = CharField(max_length=128)
+    display_name = CharField(max_length=128)
 
 class WDApplication(ModelBase):
     application_id = AutoField()
