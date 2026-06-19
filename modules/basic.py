@@ -2,7 +2,7 @@ from core.modulebase import ModuleBase
 import discord
 from discord.ext.commands import slash_command
 from logging import critical, info
-from core.models import WDApplication
+from core.models import WDApplication, AntispamTriggerEvent, LostCycle
 from constants import PROGRAM_VERSION
 import os
 
@@ -35,7 +35,24 @@ class BasicModule(ModuleBase):
         accepted_count = WDApplication.select().where(WDApplication.accepted).count()
         rejected_count = WDApplication.select().where(~WDApplication.accepted).count()
         external_count = WDApplication.select().where(WDApplication.resolved_externally).count()
-        await ctx.respond(f"```WDCheck verze {PROGRAM_VERSION}\nPřijatých žádostí: {accepted_count}\nZamítnutých žádostí: {rejected_count}\nNezapočítaných žádostí: {external_count}```")
+        antispam_trigger_count = AntispamTriggerEvent.select().count()
+        lost_cycle_count = LostCycle.select().count()
+        stats_text = (f"```Monika.aic verze {PROGRAM_VERSION}\n"
+                      f"Přijatých žádostí: {accepted_count}\n"
+                      f"Zamítnutých žádostí: {rejected_count}\n"
+                      f"Nezapočítaných žádostí: {external_count}\n"
+                      f"Události detekce spamu: {antispam_trigger_count}\n"
+                      f"Cykly ztraceného tlačítka: {lost_cycle_count}```")
+        await ctx.respond(stats_text)
+
+    @discord.default_permissions(administrator=True)
+    @slash_command(name="config", description="Zobrazí konfiguraci")
+    async def view_config(self, ctx: discord.ApplicationContext):
+        # unnghhh I hate global state
+        loaded_modules = self.bot.__getattribute__("loaded_modules")
+        config_text = (f"Konfigurace Monika.aic verze {PROGRAM_VERSION}\n")
+        # TODO: Finish this
+        await ctx.respond("teehee :3")
 
     @discord.default_permissions(administrator=True)
     @slash_command(name="ping", description="Mňau")
