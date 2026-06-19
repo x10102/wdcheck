@@ -20,6 +20,7 @@ from modules.basic import BasicModule
 from modules.applications import WikidotApplicationsModule
 from modules.lost import LostModule
 from modules.antispam import AntispamModule
+from modules.imagetools import ImageToolsModule
 
 bot = discord.Bot(intents=discord.Intents.all())
 
@@ -62,6 +63,8 @@ if __name__ == "__main__":
 
     info("Loading modules")
     
+    loaded = []
+
     for module in LOAD_MODULES:
         if os.environ.get(module.env_override()) == 'true':
             info(f"Not loading module: {module.name()} - due to env override")
@@ -69,11 +72,14 @@ if __name__ == "__main__":
         try:
             bot.add_cog(module(bot))
             info(f"Loaded module: {module.name()}")
+            loaded.append(module)
         except MissingConfigError:
             warning(f"Not loading module: {module.name()} - due to missing configuration")
         except Exception as e:
             warning(f"Error while loading module: {module.name()}: {str(e)}")
-    
+
+    setattr(bot, 'loaded_modules', loaded)
+
     token = os.environ.get("BOT_TOKEN")
     if not token:
         critical("Discord API token is missing, cannot continue")
