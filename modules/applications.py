@@ -157,5 +157,6 @@ class WikidotApplicationsModule(ModuleBase):
     @discord.default_permissions(administrator=True)
     @discord.slash_command(name="applications", description="Zobrazí čekající žádanky na Wikidotu")
     async def view_applications(self, ctx: discord.ApplicationContext):
+        await ctx.interaction.response.defer()
         new_count = await self.check_applications()
-        await ctx.respond(f"{print_application_number(new_count)}", ephemeral=True)
+        await ctx.interaction.followup.send(f"{print_application_number(new_count)}", ephemeral=True) 
