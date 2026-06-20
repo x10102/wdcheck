@@ -1,6 +1,5 @@
 # Builtins
 from datetime import datetime
-from os import environ
 from logging import info
 
 # External
@@ -12,7 +11,7 @@ import discord
 from constants import THE_NUMBERS, KOTESENI
 from utils.discordutils import ensure_user
 from core.models import LostCycle, LostCycleReset
-from core.exceptions import MissingConfigError
+from core.singletons import config
 
 from core.modulebase import ModuleBase
 
@@ -23,21 +22,21 @@ class LostModule(ModuleBase):
 
     @staticmethod
     def env_override():
-        return "DISABLE_LOST"
+        return "disable_lost"
     
     @staticmethod
     def name():
         return "Lost"
+    
+    @staticmethod
+    def config_required():
+        return ['channels.lost', 'roles.lost']
 
     def __init__(self, bot: discord.Bot):
-        channel_id = environ.get("LOST_CHANNEL_ID")
-        role_id = environ.get("LOST_ROLE_ID")
-        if not channel_id or not role_id:
-            raise MissingConfigError("Channel or role ID not configured")
         self.bot: discord.Bot = bot
         self.iterations = 0
-        self.channel_id = int(channel_id)
-        self.role_id = int(role_id)
+        self.channel_id = config.get_value("channels.lost")
+        self.role_id = config.get_value("roles.lost")
         self.can_reset = False
         self.started_at = datetime.now()
         self.first_prompt_loop = True

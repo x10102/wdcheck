@@ -5,7 +5,7 @@ import os
 from peewee import Model
 from dotenv import load_dotenv
 import logging
-from logging import info, warning, critical
+from logging import info, warning, critical, error
 import nest_asyncio # type: ignore[import-untyped]
 import discord
 
@@ -14,7 +14,7 @@ from core.exceptions import MissingConfigError
 from core.modulebase import ModuleBase
 from core.singletons import config
 from constants import PROGRAM_VERSION
-from core.models import LostCycle, LostCycleReset, database, WDApplication, User, AntispamTriggerEvent, SpamAttachmentHash
+from core.models import LostCycle, LostCycleReset, database, WDApplication, User, AntispamTriggerEvent, SpamAttachmentHash, StarboardPinnedMessage
 
 # Modules
 from modules.basic import BasicModule
@@ -22,11 +22,12 @@ from modules.applications import WikidotApplicationsModule
 from modules.lost import LostModule
 from modules.antispam import AntispamModule
 from modules.imagetools import ImageToolsModule
+from modules.starboard import StarboardModule
 
 bot = discord.Bot(intents=discord.Intents.all())
 
-LOAD_MODULES: list[type[ModuleBase]] = [BasicModule, LostModule, AntispamModule, WikidotApplicationsModule]
-CREATE_MODELS: list[Model] = [User, WDApplication, LostCycle, LostCycleReset, AntispamTriggerEvent, SpamAttachmentHash]
+LOAD_MODULES: list[type[ModuleBase]] = [BasicModule, LostModule, AntispamModule, WikidotApplicationsModule, StarboardModule]
+CREATE_MODELS: list[Model] = [User, WDApplication, LostCycle, LostCycleReset, AntispamTriggerEvent, SpamAttachmentHash, StarboardPinnedMessage]
 
 # Set up the logging format and target
 # Logs to stdout and "bot.log" by default
@@ -50,8 +51,8 @@ def setup_logger(filename="bot.log"):
     logger.addHandler(file_handler)
         
 if __name__ == "__main__":
-    config.load_from_env()
-    setup_logger(config.get("LOG_FILE", "bot.log"))
+    config.load_from_json()
+    setup_logger(config.get("log_file", "bot.log"))
     info("Logger initialized")
     info(f"Monika.aic version {PROGRAM_VERSION} starting")
     info("Applying nested asyncio patch")
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     nest_asyncio.apply()
     
     info("Initializing database")
-    database.init(config.get("DB_FILE", "applications.db"))
+    database.init(config.get("db_file", "applications.db"))
     database.connect()
     database.create_tables(CREATE_MODELS)
 
@@ -67,9 +68,15 @@ if __name__ == "__main__":
     
     loaded = []
 
+    overrides = config.scope("overrides")
+
     for module in LOAD_MODULES:
-        if config.get(module.env_override()) == 'true':
+        if overrides.get(module.env_override()):
             info(f"Not loading module: {module.name()} - due to env override")
+            continue
+        missing_required = config.keys_missing(module.config_required())
+        if len(missing_required) != 0:
+            error(f"Not loading module {module.name()} - missing required keys: [{', '.join(missing_required)}]")
             continue
         try:
             bot.add_cog(module(bot))
@@ -82,7 +89,7 @@ if __name__ == "__main__":
 
     setattr(bot, 'loaded_modules', loaded)
 
-    token = config.get("BOT_TOKEN")
+    token = config.get("bot_token")
     if not token:
         critical("Discord API token is missing, cannot continue")
         exit(2)

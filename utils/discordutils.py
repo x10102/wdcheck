@@ -20,3 +20,8 @@ def check_valid_interaction(interaction: discord.Interaction):
     assert interaction.user is not None
     assert interaction.message is not None
     return interaction
+
+def get_message_url(message: discord.Message) -> str:
+    if message.guild is None:
+        return ""
+    return f"https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"

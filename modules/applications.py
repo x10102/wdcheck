@@ -80,21 +80,23 @@ class WikidotApplicationsModule(ModuleBase):
 
     @staticmethod
     def env_override():
-        return "DISABLE_APPLICATION_CHECK"
+        return "disable_application_check"
     
     @staticmethod
     def name():
         return "Wikidot Applications"
+    
+    @staticmethod
+    def config_required():
+        ['channels.console', 'wikidot.name', 'wikidot.user', 'wikidot.password']
 
     def __init__(self, bot: discord.Bot):
         self.bot: discord.Bot = bot
-        console_channel = config.get("CONSOLE_CHANNEL")
-        wiki_name = config.get("WIKI_NAME")
-        wiki_user = config.get("WIKI_USER")
-        wiki_password = config.get("WIKI_PASSWORD")
-
-        if not all([console_channel, wiki_name, wiki_password, wiki_user]):
-            raise MissingConfigError("Missing Wikidot config values")
+        wiki_cfg = config.scope("wikidot")
+        console_channel = config.get("channels.console")
+        wiki_name = wiki_cfg.get("name")
+        wiki_user = wiki_cfg.get("user")
+        wiki_password = wiki_cfg.get("password")
 
         # Why do I even bother with fucking MyPy at this point
         # That thing is just so stupid
@@ -108,7 +110,7 @@ class WikidotApplicationsModule(ModuleBase):
     @ModuleBase.listener()
     async def on_ready(self):
         if not self.check_applications.is_running() \
-            and config.get("DISABLE_APPLICATION_CHECK") != 'true':
+            and config.get("overrides.disable_application_check") != 'true':
             info("Scheduled check task")
             self.check_applications.start()
     
@@ -149,7 +151,7 @@ class WikidotApplicationsModule(ModuleBase):
                         unresolved.save()
         except Exception as e:
             error(f"Error encountered in check task: {str(e)}")
-            channel = self.bot.get_channel(int(config.get("CONSOLE_CHANNEL")))
+            channel = self.bot.get_channel(int(config.get("channels.console")))
             await channel.send(content=f"Při stahování žádanek nastala chyba: {str(e)}")
 
         return count

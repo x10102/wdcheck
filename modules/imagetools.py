@@ -10,7 +10,7 @@ class ImageToolsModule(ModuleBase):
     
     @staticmethod
     def env_override():
-        return "DISABLE_IMAGE_PROCESSING"
+        return "disable_image_processing"
     
     @staticmethod
     def name():

@@ -65,4 +65,7 @@ class SpamAttachmentHash(ModelBase):
 class StarboardPinnedMessage(ModelBase):
     id = AutoField()
     message_id = CharField(15) # 15 chars should be enough for the forseeable future
-    pinned_at = TimestampField(default=datetime.datetime.now)
+    emoji = CharField(64)
+    pinned_at = TimestampField(null=True)
+    reaction_count = IntegerField(default=0)
+    created_at = TimestampField(default=datetime.datetime.now)

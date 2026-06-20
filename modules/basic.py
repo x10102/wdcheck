@@ -11,11 +11,15 @@ class BasicModule(ModuleBase):
 
     @staticmethod
     def env_override():
-        return "DISABLE_BASIC"
+        return "disable_basic"
     
     @staticmethod
     def name():
         return "Basic Commands"
+    
+    @staticmethod
+    def config_required():
+        return ['channels.console']
 
     def __init__(self, bot: discord.Bot):
         super().__init__()
@@ -71,8 +75,8 @@ class BasicModule(ModuleBase):
     @ModuleBase.listener()
     async def on_ready(self):
         info(f"{self.bot.user} is ready to go!")
-        if(config.get("SYNC_COMMANDS_ON_STARTUP", "false") == "true"):
+        if(config.get("overrides.sync_commands_on_startup", "false") == "true"):
             info("Syncing commands")
             await self.bot.sync_commands()
-            channel = self.bot.get_channel(int(config.get("CONSOLE_CHANNEL")))
+            channel = self.bot.get_channel(int(config.get("channels.console")))
             await channel.send("Nové příkazy synchronizovány s Discord bot API, Čýmsi nezapomeň upravit .env")
