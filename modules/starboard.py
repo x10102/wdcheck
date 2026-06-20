@@ -47,6 +47,8 @@ class StarboardModule(ModuleBase):
             StarboardPinnedMessage.get_or_create(message_id = payload.message_id,
                                                 emoji = payload.emoji)[0]
         message_model.reaction_count += 1
+        if message_model.pinned_at is not None:
+            return
         if message_model.reaction_count < self.threshold:
             message_model.save()
             return
@@ -71,6 +73,7 @@ class StarboardModule(ModuleBase):
                              inline=False)
         star_embed.set_footer(text=message.created_at.astimezone().strftime("%d.%m.%Y %H:%M:%S"))
 
+        # We can only send a single image in an embed, so we loop over all of them and grab the first one
         if len(message.attachments) > 0:
             for att in message.attachments:
                 # Just check the MIME type for 'image', discord doesn't directly tell us if the file is embedded as image
@@ -83,6 +86,16 @@ class StarboardModule(ModuleBase):
                     star_embed.add_field(name="",
                                          value=f"{att.proxy_url}")
                     continue
+
+        # Do the same for embeds
+        if len(message.embeds) > 0:
+            for embed in message.embeds:
+                if embed.image:
+                    star_embed.set_image(url=embed.image.proxy_url)
+                    break
+                if embed.thumbnail:
+                    star_embed.set_image(url=embed.thumbnail.url)
+                    break
 
         channel_and_count = f"**{self.threshold}x {payload.emoji} v <#{message.channel.id}>**"
 

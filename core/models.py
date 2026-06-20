@@ -66,6 +66,6 @@ class StarboardPinnedMessage(ModelBase):
     id = AutoField()
     message_id = CharField(15) # 15 chars should be enough for the forseeable future
     emoji = CharField(64)
-    pinned_at = TimestampField(null=True)
+    pinned_at = TimestampField(null=True, default=None)
     reaction_count = IntegerField(default=0)
     created_at = TimestampField(default=datetime.datetime.now)
