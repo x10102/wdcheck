@@ -12,6 +12,7 @@ import discord
 # Internal
 from core.exceptions import MissingConfigError
 from core.modulebase import ModuleBase
+from core.singletons import config
 from constants import PROGRAM_VERSION
 from core.models import LostCycle, LostCycleReset, database, WDApplication, User, AntispamTriggerEvent, SpamAttachmentHash
 
@@ -49,15 +50,16 @@ def setup_logger(filename="bot.log"):
     logger.addHandler(file_handler)
         
 if __name__ == "__main__":
-    setup_logger(os.environ.get("LOG_FILE", "bot.log"))
+    config.load_from_env()
+    setup_logger(config.get("LOG_FILE", "bot.log"))
     info("Logger initialized")
     info(f"Monika.aic version {PROGRAM_VERSION} starting")
     info("Applying nested asyncio patch")
     # This is needed for running the wikidot library alongside pycord as it uses its own asyncio loop
     nest_asyncio.apply()
-    load_dotenv(override=True)
+    
     info("Initializing database")
-    database.init(os.environ.get("DB_FILE", "applications.db"))
+    database.init(config.get("DB_FILE", "applications.db"))
     database.connect()
     database.create_tables(CREATE_MODELS)
 
@@ -66,7 +68,7 @@ if __name__ == "__main__":
     loaded = []
 
     for module in LOAD_MODULES:
-        if os.environ.get(module.env_override()) == 'true':
+        if config.get(module.env_override()) == 'true':
             info(f"Not loading module: {module.name()} - due to env override")
             continue
         try:
@@ -80,7 +82,7 @@ if __name__ == "__main__":
 
     setattr(bot, 'loaded_modules', loaded)
 
-    token = os.environ.get("BOT_TOKEN")
+    token = config.get("BOT_TOKEN")
     if not token:
         critical("Discord API token is missing, cannot continue")
         exit(2)

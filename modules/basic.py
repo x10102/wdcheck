@@ -4,7 +4,8 @@ from discord.ext.commands import slash_command
 from logging import critical, info
 from core.models import WDApplication, AntispamTriggerEvent, LostCycle
 from constants import PROGRAM_VERSION
-import os
+from core.singletons import config
+
 
 class BasicModule(ModuleBase):
 
@@ -70,8 +71,8 @@ class BasicModule(ModuleBase):
     @ModuleBase.listener()
     async def on_ready(self):
         info(f"{self.bot.user} is ready to go!")
-        if(os.environ.get("SYNC_COMMANDS_ON_STARTUP", "false") == "true"):
+        if(config.get("SYNC_COMMANDS_ON_STARTUP", "false") == "true"):
             info("Syncing commands")
             await self.bot.sync_commands()
-            channel = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+            channel = self.bot.get_channel(int(config.get("CONSOLE_CHANNEL")))
             await channel.send("Nové příkazy synchronizovány s Discord bot API, Čýmsi nezapomeň upravit .env")

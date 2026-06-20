@@ -4,7 +4,7 @@ import os.path
 from PIL import Image
 from core.modulebase import ModuleBase
 from logging import warning, info
-from pprint import pprint
+
 
 class ImageToolsModule(ModuleBase):
     

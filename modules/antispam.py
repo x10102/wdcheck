@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from hashlib import blake2b
 from datetime import datetime, timedelta
 from typing import cast
-import os
 import random
 import asyncio
 import utils.discordutils as discordutils
@@ -15,6 +14,7 @@ from enum import IntEnum
 from core.exceptions import MissingConfigError
 
 from core.modulebase import ModuleBase
+from core.singletons import config
 
 from core.models import AntispamTriggerEvent, AntiSpamResolveAction, SpamAttachmentHash
 
@@ -123,10 +123,10 @@ class AntispamModule(ModuleBase):
         self.offending_messages: dict[int, set[discord.Message]] = {}
         self.repeat_counters: dict[int, int] = {}
         self.author_locks: dict[int, asyncio.Lock] = {}
-        self.repeat_timeout = timedelta(minutes=int(os.environ.get("ANTISPAM_WINDOW_MINUTES", 5)))
-        self.default_mute = timedelta(hours=int(os.environ.get("ANTISPAM_TIMEOUT_HOURS", 12)))
-        self.spam_limit = int(os.environ.get("ANTISPAM_WINDOW_SIZE", 4))
-        console_channel = os.environ.get("CONSOLE_CHANNEL")
+        self.repeat_timeout = timedelta(minutes=int(config.get("ANTISPAM_WINDOW_MINUTES", 5)))
+        self.default_mute = timedelta(hours=int(config.get("ANTISPAM_TIMEOUT_HOURS", 12)))
+        self.spam_limit = int(config.get("ANTISPAM_WINDOW_SIZE", 4))
+        console_channel = config.get("CONSOLE_CHANNEL")
         if not console_channel:
             raise MissingConfigError("No console channel set")
         self.console_channel = int(console_channel)
@@ -171,7 +171,7 @@ class AntispamModule(ModuleBase):
             raise RuntimeError("Got User object where Member object was expected (PM interactions not supported)")
 
 
-        await console.send(content=f"<@&{os.environ.get("ADMIN_ROLE_ID")}>",
+        await console.send(content=f"<@&{config.get("ADMIN_ROLE_ID")}>",
                             embed=embed, 
                             view=AntiSpamEventView(message_author, self.offending_messages[offending_message.author.id], event_record))
         del self.offending_messages[offending_message.author.id]

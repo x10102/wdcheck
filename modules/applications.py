@@ -1,6 +1,5 @@
 import discord
 import wikidot
-import os
 import random
 
 from discord.ext import tasks
@@ -15,6 +14,7 @@ from typing import cast
 
 from constants import PM_VERB
 from core.exceptions import MissingConfigError
+from core.singletons import config
 
 class WDAppConfirmView(discord.ui.View):
     def __init__(self, application, record: WDApplication, module: "WikidotApplicationsModule"):
@@ -88,10 +88,10 @@ class WikidotApplicationsModule(ModuleBase):
 
     def __init__(self, bot: discord.Bot):
         self.bot: discord.Bot = bot
-        console_channel = os.environ.get("CONSOLE_CHANNEL")
-        wiki_name = os.environ.get("WIKI_NAME")
-        wiki_user = os.environ.get("WIKI_USER")
-        wiki_password = os.environ.get("WIKI_PASSWORD")
+        console_channel = config.get("CONSOLE_CHANNEL")
+        wiki_name = config.get("WIKI_NAME")
+        wiki_user = config.get("WIKI_USER")
+        wiki_password = config.get("WIKI_PASSWORD")
 
         if not all([console_channel, wiki_name, wiki_password, wiki_user]):
             raise MissingConfigError("Missing Wikidot config values")
@@ -108,7 +108,7 @@ class WikidotApplicationsModule(ModuleBase):
     @ModuleBase.listener()
     async def on_ready(self):
         if not self.check_applications.is_running() \
-            and os.environ.get("DISABLE_APPLICATION_CHECK") != 'true':
+            and config.get("DISABLE_APPLICATION_CHECK") != 'true':
             info("Scheduled check task")
             self.check_applications.start()
     
@@ -118,10 +118,10 @@ class WikidotApplicationsModule(ModuleBase):
         count = 0
         applications = list()
         try:
-            with wikidot.Client(username=os.environ.get("WIKI_USER"), password=os.environ.get("WIKI_PASSWORD")) as client:
+            with wikidot.Client(username=self.wiki_user, password=self.wiki_password) as client:
 
-                channel = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
-                site = client.site.get(os.environ.get("WIKI_NAME"))
+                channel = self.bot.get_channel(self.console_channel)
+                site = client.site.get(self.wiki_name)
 
                 for application in site.applications:
                     if(WDApplication.select()
@@ -149,7 +149,7 @@ class WikidotApplicationsModule(ModuleBase):
                         unresolved.save()
         except Exception as e:
             error(f"Error encountered in check task: {str(e)}")
-            channel = self.bot.get_channel(int(os.environ.get("CONSOLE_CHANNEL")))
+            channel = self.bot.get_channel(int(config.get("CONSOLE_CHANNEL")))
             await channel.send(content=f"Při stahování žádanek nastala chyba: {str(e)}")
 
         return count
