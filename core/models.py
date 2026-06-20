@@ -58,6 +58,11 @@ class AntispamTriggerEvent(ModelBase):
     
 class SpamAttachmentHash(ModelBase):
     id = AutoField()
-    hexdigest = CharField(32) # We use BLAKE2b-128, which means 16 byte digest - 16 hex chars
+    hexdigest = CharField(32) # We use BLAKE2b-128, which means 16 byte digest - 32 hex chars
     filename = TextField()
     event = ForeignKeyField(AntispamTriggerEvent, backref='attachments')
+
+class StarboardPinnedMessage(ModelBase):
+    id = AutoField()
+    message_id = CharField(15) # 15 chars should be enough for the forseeable future
+    pinned_at = TimestampField(default=datetime.datetime.now)
