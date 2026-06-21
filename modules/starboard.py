@@ -43,6 +43,10 @@ class StarboardModule(ModuleBase):
             return
         if payload.channel_id in self.excluded:
             return
+        already_pinned = StarboardPinnedMessage.select().where((StarboardPinnedMessage.pinned_at.is_null(False))\
+                                                               & (StarboardPinnedMessage.message_id == payload.message_id)).exists()
+        if already_pinned:
+            return
         message_model: StarboardPinnedMessage = \
             StarboardPinnedMessage.get_or_create(message_id = payload.message_id,
                                                 emoji = payload.emoji)[0]
